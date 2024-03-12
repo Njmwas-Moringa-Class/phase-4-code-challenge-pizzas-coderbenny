@@ -47,13 +47,13 @@ def get_restaurant_by_id(id):
 # deleting restaurant
 @app.route('/restaurants/<int:id>', methods=['DELETE'])
 def delete_restaurant(id):
-    restaurant = Restaurant.query.get(id)
+    restaurant = Restaurant.query.filter_by(id=id).first()
     if restaurant:
         db.session.delete(restaurant)
         db.session.commit()
         return '', 204
     else: 
-        return jsonify({"error": "Restaurant not found"}), 404
+        return jsonify({"error": "Restaurant not found."}), 404
 
 
 # fetching pizzas
@@ -66,6 +66,7 @@ def pizzas():
     else:
         return jsonify({"Error":"Pizza not found"})
 
+
 # create restaurant_pizza
 @app.route('/restaurant_pizzas', methods=['POST'])
 def create_restaurant_pizza():
@@ -77,11 +78,14 @@ def create_restaurant_pizza():
     if not all([price, restaurant_id, pizza_id]):
         return jsonify({"errors":["validation errors"]}), 400
 
+
     if not (1 <= price <= 30):
         return jsonify({"errors":["validation errors"]}), 400
 
-    pizza = Pizza.query.get(pizza_id)        
-    restaurant = Restaurant.query.get(restaurant_id)
+
+    pizza = Pizza.query.filter_by(id=pizza_id).first()       
+    restaurant = Restaurant.query.filter_by(id=restaurant_id).first()
+
 
     if not (pizza and restaurant):
         return jsonify({"errors": "Pizza or restaurant not found"}), 404        
