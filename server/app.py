@@ -18,6 +18,7 @@ app.json.compact = False
 migrate = Migrate(app, db)
 
 db.init_app(app)
+api = Api(app)
 
 # default route
 @app.route('/')
@@ -25,83 +26,93 @@ def index():
     return '<h1>Code challenge</h1>'
 
 # all restaurants route
-@app.route('/restaurants')
-def restaurants():
-    restaurants = db.session.query(Restaurant).all()
+class Restaurants(Resource):
 
-    if restaurants:
-        return jsonify([restaurant.to_dict() for restaurant in restaurants]), 200
-    else:
-        return jsonify({"Error":"No existing restaurants."}), 404
+    def get(self):
+        restaurants = db.session.query(Restaurant).all()
 
-# fetching restaurant by ID
-@app.route('/restaurants/<int:id>', methods=['GET'])
-def get_restaurant_by_id(id):
-    restaurant = Restaurant.query.filter_by(id=id).first()
-    if restaurant:
-        return jsonify(restaurant.to_dict(include_pizzas=True)), 200
-    else:
-        return jsonify({"error":"Restaurant not found."}), 404
-    
-    
-# deleting restaurant
-@app.route('/restaurants/<int:id>', methods=['DELETE'])
-def delete_restaurant(id):
-    restaurant = Restaurant.query.filter_by(id=id).first()
-    if restaurant:
+        if not restaurants:
+            return jsonify({"Error":"No existing restaurants."}), 404
+        return make_response(jsonify([restaurant.to_dict() for restaurant in restaurants]), 200)
+
+api.add_resource(Restaurants, '/restaurants')    
+
+# Restaurant by ID
+class RestaurantByID(Resource):
+
+    # Retrieving restaurant by ID
+    def get(self, id):
+        restaurant = Restaurant.query.filter_by(id=id).first()
+        
+        if not restaurant:
+            return make_response(jsonify({"error":"Restaurant not found."}), 404)
+        return make_response(jsonify(restaurant.to_dict(include_pizzas=True)), 200)
+
+    # Deleting restaurant
+    def delete(self, id):
+        restaurant = Restaurant.query.filter_by(id=id).first()
+
+        if not restaurant:
+            return make_response(jsonify({"error":"Restaurant not found."}), 404)
         db.session.delete(restaurant)
         db.session.commit()
         return '', 204
-    else: 
-        return jsonify({"error": "Restaurant not found."}), 404
+
+
+api.add_resource(RestaurantByID, '/restaurants/<int:id>')
 
 
 # fetching pizzas
-@app.route('/pizzas', methods=['GET'])
-def pizzas():
-    pizzas = Pizza.query.all()
+class Pizzas(Resource):
 
-    if pizzas:
-        return jsonify([pizza.to_dict() for pizza in pizzas]), 200
-    else:
-        return jsonify({"Error":"Pizza not found"})
+    def get(self):
+        pizzas = Pizza.query.all()
 
+        if not pizzas:
+            return make_response(jsonify({"Error":"Pizza not found"}), 404)
+        return make_response(jsonify([pizza.to_dict() for pizza in pizzas]), 200)
+
+
+api.add_resource(Pizzas,'/pizzas')
+    
 
 # create restaurant_pizza
-@app.route('/restaurant_pizzas', methods=['POST'])
-def create_restaurant_pizza():
-    data = request.json
-    price = data.get('price')
-    restaurant_id = data.get('restaurant_id')
-    pizza_id = data.get('pizza_id')
+class AddRestaurantPizza(Resource):
 
-    if not all([price, restaurant_id, pizza_id]):
-        return jsonify({"errors":["validation errors"]}), 400
+    def post(self):
+        data = request.json
+        price = data.get('price')
+        restaurant_id = data.get('restaurant_id')
+        pizza_id = data.get('pizza_id')
 
-
-    if not (1 <= price <= 30):
-        return jsonify({"errors":["validation errors"]}), 400
+        if not all([price, restaurant_id, pizza_id]):
+            return make_response(jsonify({"errors":["validation errors"]}), 400)
 
 
-    pizza = Pizza.query.filter_by(id=pizza_id).first()       
-    restaurant = Restaurant.query.filter_by(id=restaurant_id).first()
+        if not (1 <= price <= 30):
+            return make_response(jsonify({"errors":["validation errors"]}), 400)
 
 
-    if not (pizza and restaurant):
-        return jsonify({"errors": "Pizza or restaurant not found"}), 404        
+        pizza = Pizza.query.filter_by(id=pizza_id).first()       
+        restaurant = Restaurant.query.filter_by(id=restaurant_id).first()
 
-    try:
-        new_rp = RestaurantPizza(
-            price = price,
-            pizza_id = pizza_id,
-            restaurant_id = restaurant_id
-        )
-        db.session.add(new_rp)
-        db.session.commit()
-        return jsonify(new_rp.to_dict()), 201
-    except ValueError as e:
-        return jsonify({"Error": [str(e)]}), 500
 
+        if not (pizza and restaurant):
+            return make_response(jsonify({"errors": "Pizza or restaurant not found"}), 404)        
+
+        try:
+            new_rp = RestaurantPizza(
+                price = price,
+                pizza_id = pizza_id,
+                restaurant_id = restaurant_id
+            )
+            db.session.add(new_rp)
+            db.session.commit()
+            return make_response(jsonify(new_rp.to_dict()), 201)
+        except ValueError as e:
+            return make_response(jsonify({"Error": [str(e)]}), 500)
+
+api.add_resource(AddRestaurantPizza, '/restaurant_pizzas')
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)
